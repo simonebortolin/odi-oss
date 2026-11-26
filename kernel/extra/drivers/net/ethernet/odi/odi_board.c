@@ -54,6 +54,15 @@ void odi_board_init(void)
 	ODI_BOARD_LOG("board init replay: %u events applied\n", odi_board_init_event_count);
 }
 
+#ifdef ODI_BOARD_F6005
+/*
+ * The F6005 is a box ONT with an external RTL8226B-VB PHY: no SFP module,
+ * no laser driver, no TX-disable GPIO. The laser and optics verbs are
+ * stubs that succeed without touching hardware, so the GPON init sequence
+ * that calls them runs unchanged.
+ */
+#endif
+
 #define ODI_BOARD_GPIO_TX_DISABLE	13U
 
 static struct odi_board_laser odi_board_laser_state = { .laser_on = 0, .ldd_id = -1 };
@@ -168,6 +177,10 @@ void odi_board_sfp_slave_pin(int held)
 
 int odi_board_optics(void)
 {
+#ifdef ODI_BOARD_F6005
+	ODI_BOARD_LOG("optics: F6005 box ONT, no SFP optics to configure\n");
+	return 0;
+#else
 	uint32_t v = ODI_BOARD_PIN_GPIO_SELECT;
 
 #ifdef __KERNEL__
@@ -179,10 +192,25 @@ int odi_board_optics(void)
 	odi_reg_write(ODI_SW_PIN_GPIO_SELECT(0), v);
 	ODI_BOARD_LOG("optics: PIN_GPIO_SELECT 0x%08x\n", (unsigned int)v);
 	return 0;
+#endif
 }
 
 int odi_board_laser(const char *arg)
 {
+#ifdef ODI_BOARD_F6005
+	/*
+	 * The F6005 has an internal BOSA module with its own laser control --
+	 * the GPON MAC drives it directly, no GPIO TX-disable line. Report the
+	 * laser as on so the GPON activation sequence proceeds.
+	 */
+	(void)arg;
+	odi_board_laser_state.laser_on = 1;
+	odi_board_laser_state.ldd_id = -1;
+	odi_board_laser_state.unverified = 0;
+	odi_board_laser_state.emergency_stop = 0;
+	ODI_BOARD_LOG("laser: F6005 box ONT, internal BOSA, laser gated by GPON MAC\n");
+	return 0;
+#else
 	const uint32_t bit = 1U << ODI_BOARD_GPIO_TX_DISABLE;
 	int unverified = arg && !strcmp(arg, "unverified");
 	unsigned long flags = 0;
@@ -216,10 +244,22 @@ int odi_board_laser(const char *arg)
 		      (unsigned int)odi_soc_read(SOC_GPIO_DIR),
 		      (unsigned int)odi_soc_read(SOC_GPIO_DATA), rc);
 	return rc;
+#endif
 }
 
 int odi_board_tx_disable(int disable)
 {
+#ifdef ODI_BOARD_F6005
+	/*
+	 * The F6005 BOSA laser is controlled by the GPON MAC's TX-enable
+	 * signal, not a GPIO. The O7 state machine still calls this, so
+	 * record the state for status reporting.
+	 */
+	odi_board_laser_state.emergency_stop = disable ? 1 : 0;
+	ODI_BOARD_LOG("laser: %s (F6005: GPON MAC TX-enable)\n",
+		      disable ? "OFF, emergency stop (O7)" : "on again, emergency stop left");
+	return 0;
+#else
 	const uint32_t bit = 1U << ODI_BOARD_GPIO_TX_DISABLE;
 	unsigned long flags = 0;
 	int rc = 0;
@@ -242,4 +282,5 @@ int odi_board_tx_disable(int disable)
 		      disable ? "OFF, emergency stop (O7)" : "on again, emergency stop left",
 		      ODI_BOARD_GPIO_TX_DISABLE, disable ? "high" : "low", rc);
 	return rc;
+#endif
 }

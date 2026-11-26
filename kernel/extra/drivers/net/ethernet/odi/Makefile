@@ -13,7 +13,16 @@ obj-$(CONFIG_ODI_SWITCH) += odi_switch_port.o odi_switch_qos.o odi_switch_ds_gem
 			   odi_switch_platform.o odi_switch_mib.o
 obj-$(CONFIG_ODI_SWITCH) += odi_replay.o odi_replay_blob.o odi_replay_fw.o
 obj-$(CONFIG_ODI_SWITCH) += odi_switch_sdkinit.o
+# ODI_BOARD selects the board init data: dfp34x (default, the ODI DFP-34X-2C2
+# SFP stick) or f6005 (ZTE F6005 / CIG G-97CP box ONT). Both share the replay
+# engine and the board code; only the register sequence differs.
+ODI_BOARD ?= dfp34x
+ifeq ($(ODI_BOARD),f6005)
+obj-$(CONFIG_ODI_SWITCH) += odi_board.o odi_board_data_f6005.o
+CFLAGS_odi_board.o += -DODI_BOARD_F6005
+else
 obj-$(CONFIG_ODI_SWITCH) += odi_board.o odi_board_data.o
+endif
 obj-$(CONFIG_ODI_SWITCH) += odi_init.o
 obj-$(CONFIG_ODI_WDT) += odi_wdt.o
 obj-$(CONFIG_ODI_HWMON) += odi_hwmon.o

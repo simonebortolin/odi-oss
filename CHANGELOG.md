@@ -5,6 +5,13 @@ listed here.
 
 ## Unreleased
 
+- Board: ZTE F6005 (CIG G-97CP) port scaffolding. `ODI_BOARD=f6005` in the
+  kernel Makefile selects the F6005 board-init replay and stubs the SFP
+  optics/laser verbs (the F6005 is a box ONT with an internal BOSA, no SFP
+  module). `image/build-f6005.sh` produces a cramfs image for the CIG
+  bootloader. The board-init register sequence is a stub pending a serial
+  capture from stock firmware; see `docs/F6005-PORT.md` for the roadmap.
+
 - omcid: a rebuild of the bridge connections no longer takes every
   service down first. It derives the whole table as before, then withdraws
   only the services the new table no longer has, sends the changed ones
